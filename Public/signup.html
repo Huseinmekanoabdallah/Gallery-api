@@ -23,28 +23,39 @@
         <p class="text-center text-sm text-gray-500 mt-6">Already have an account? <a href="login.html" class="text-indigo-600 font-semibold hover:underline">Log in</a></p>
     </div>
     <script>
+        // ✅ Correct API URL for Render deployment
         const API = '/api';
+
         document.getElementById('signupForm').addEventListener('submit', async (e) => {
             e.preventDefault();
             const username = document.getElementById('signupUsername').value.trim();
             const email = document.getElementById('signupEmail').value.trim();
             const password = document.getElementById('signupPassword').value.trim();
             const msg = document.getElementById('signupMessage');
+
+            if (!username || !email || !password) {
+                msg.innerHTML = `<div class="bg-red-100 border border-red-300 text-red-700 px-4 py-2 rounded-xl">Please fill in all fields</div>`;
+                return;
+            }
+
             try {
                 const res = await fetch(`${API}/signup`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ username, email, password })
                 });
+
                 const data = await res.json();
+
                 if (res.ok) {
                     msg.innerHTML = `<div class="bg-green-100 border border-green-300 text-green-700 px-4 py-2 rounded-xl">✅ Account created! <a href="login.html" class="font-semibold text-indigo-600">Log in now</a></div>`;
                     document.getElementById('signupForm').reset();
                 } else {
                     msg.innerHTML = `<div class="bg-red-100 border border-red-300 text-red-700 px-4 py-2 rounded-xl">❌ ${data.error || 'Signup failed'}</div>`;
                 }
-            } catch {
-                msg.innerHTML = `<div class="bg-red-100 border border-red-300 text-red-700 px-4 py-2 rounded-xl">❌ Network error</div>`;
+            } catch (error) {
+                console.error('Signup error:', error);
+                msg.innerHTML = `<div class="bg-red-100 border border-red-300 text-red-700 px-4 py-2 rounded-xl">❌ Network error. Please try again.</div>`;
             }
         });
     </script>
