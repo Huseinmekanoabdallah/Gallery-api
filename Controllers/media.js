@@ -6,7 +6,6 @@ const cloudinary = require('cloudinary').v2;
 
 
 // create absolute path for the uploads folder
-const uploadDir = path.join(__dirname, '..','uploads', 'avatars');
 
 cloudinary.config({
     cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
