@@ -1,26 +1,33 @@
 const multer = require('multer');
 const db = require('../Model/db');
 const path = require('path');
-const fs = require('fs');
+const { CloudinaryStorage } = require('multer-storage-cloudinary');
+const cloudinary = require('cloudinary').v2;
+
 
 // create absolute path for the uploads folder
 const uploadDir = path.join(__dirname, '..','uploads', 'avatars');
 
-// now check where to save the file
-const stotage = multer.diskStorage({
-    destination: function (req, file, cb){
-        cb(null, uploadDir)
-    },
+cloudinary.config({
+    cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+    api_key: process.env.CLOUDINARY_API_KEY,
+    api_secret: process.env.CLOUDINARY_API_SECRET
+});
 
-    filename: function(req, file, cb){
-        // name the file: e.g. 17844559940-profile.jpg
-        cb(null, Date.now() + '-' + file.originalname)
+const storage = new CloudinaryStorage({
+    cloudinary: cloudinary,
+    params: {
+        folder: 'gallery-api/avatars',
+        allowed_formats: ['jpg', 'jpeg', 'png', 'webp'],
+        transformation: [{ width: 500, height: 500, crop: 'limit' }]
     }
 })
 
 
+
+
 //create a multer instance
-const upload = multer({ storage: stotage })
+const upload = multer({ storage: storage });
 
 
 // now the upload function
@@ -38,8 +45,24 @@ const uploadAvatar = async (req, res) => {
 
     const userId = req.userId;
 
+    const imageUrl = req.file.path; // get the path of the uploaded file
+
+    // delete the previous avatar if it exists
+    const [rows] = await db.query(
+        'SELECT avatar_url FROM users WHERE id = ?',
+        [userId]
+    );
+
+    if(rows.length > 0 && rows[0].avatar_url) {
+        const oldPublicId = rows[0].avatar_url.split('/')/slice(-2).join('/').split('.')[0]; // get the public ID of the old avatar
+
+        await cloudinary.uploader.destroy(oldPublicId); // delete the old avatar from Cloudinary
+        
+    }
     // get image URL
-    const imageUrl = `/uploads/avatars/${filename}`;
+    // const imageUrl = `/uploads/avatars/${filename}`;
+
+
 
     // now update the users table to show the avatar
     const [updateAvatar] = await db.query(
@@ -94,13 +117,10 @@ const deleteAvatar = async (req, res) => {
         //get the current avatar. if it is undefined it wont crash
         const avatarUrl = rows[0]?.avatar_url;  
 
-        if(avatarUrl){
-            const filePath = path.join(__dirname, '..', avatarUrl.slice(1)) // remove the beginning '/'
-
-            // check if file exists in disk
-            if(fs.existsSync(filePath)){
-                fs.unlinkSync(filePath) //if it does then delete from disk permanently
-            }
+         if (avatarUrl) {
+            const publicId = avatarUrl.split('/').slice(-2).join('/').split('.')[0];
+            await cloudinary.uploader.destroy(publicId);
+        }
 
             await db.query(
                 'UPDATE users SET avatar_url = NULL WHERE id = ?',
@@ -108,7 +128,7 @@ const deleteAvatar = async (req, res) => {
             )
 
             res.json({message: 'Avatar deleted successfully'})
-        }
+        
     } catch (error) {
         console.error(error)
     }

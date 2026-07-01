@@ -1,17 +1,24 @@
 const multer = require('multer');
 const path = require('path');
 const db = require('../Model/db');
-const fs = require('fs');
+const { CloudinaryStorage } = require('multer-storage-cloudinary');
+const cloudinary = require('cloudinary').v2;
 
 const uploadDir = path.join(__dirname, '..', 'uploads', 'gallery');
 
-const storage = multer.diskStorage({
-    destination: function(req, file, cb){
-        cb(null, uploadDir)
-    },
+cloudinary.config({
+    cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+    api_key: process.env.CLOUDINARY_API_KEY,
+    api_secret: process.env.CLOUDINARY_API_SECRET
+});
 
-    filename: function(req, file, cb){
-        cb(null, Date.now() + '-' + file.originalname)
+
+const storage = new CloudinaryStorage({
+    cloudinary: cloudinary,
+    params: {
+        folder: 'gallery-api/gallery',
+        allowed_formats: ['jpg', 'jpeg', 'png', 'webp'],
+        transformation: [{ width: 500, height: 500, crop: 'limit' }]
     }
 })
 
@@ -47,7 +54,7 @@ const uploadGalleryImages = async (req, res) => {
 
             for (let i = 0; i < req.files.length; i++) {
                 const file = req.files[i];
-                const imageUrl = `/uploads/gallery/${file.filename}`;
+                const imageUrl = file.path; // get the path of the uploaded file
                 const caption = captions[i] || null;
 
                 const [result] = await db.query(
@@ -210,13 +217,11 @@ const deleteGallery = async (req, res) => {
             return res.status(404).json({error: 'Gallery not found'})
         }
 
-        if(imageUrl){
+                if (imageUrl) {
+            const publicId = imageUrl.split('/').slice(-2).join('/').split('.')[0];
+            await cloudinary.uploader.destroy(publicId);
+        }
 
-            const filePath = path.join(__dirname, '..', imageUrl.slice(1))
-
-            if(fs.existsSync(filePath)){
-                fs.unlinkSync(filePath)
-            }
 
             const [deleteRow] = await db.query(
                 'DELETE FROM gallery WHERE id = ? AND user_id = ?',
@@ -226,14 +231,11 @@ const deleteGallery = async (req, res) => {
             res.status(200).json({
                 message: 'Image deleted successfully'
             })
-        }
-
-
-        
-    } catch (error) {
+        } catch (error) {
         console.error(error)
     }
 }
+
 
 
 
